@@ -81,6 +81,9 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
       overIndex = overColumn.tasks.findIndex((t) => t.id === overId);
     }
 
+    // Save current state for potential rollback
+    const previousColumns = columns;
+
     // Optimistic update
     if (activeColumn.id === overColumn.id) {
       // Same column reorder
@@ -117,7 +120,7 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
       const result = await moveTask(activeId, overColumn.id, overIndex);
       if (!result.success) {
         // Revert optimistic update on error
-        setColumns(board.columns);
+        setColumns(previousColumns);
         console.error("Failed to move task:", result.errors);
       }
     });

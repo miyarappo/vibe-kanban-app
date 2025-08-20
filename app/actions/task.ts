@@ -97,10 +97,10 @@ export async function moveTask(
   }
 
   try {
-    // Get the task being moved
+    // Get the task being moved and all related tasks
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      include: { column: true },
+      include: { column: { include: { board: true } } },
     });
 
     if (!task) {
@@ -112,92 +112,101 @@ export async function moveTask(
     }
 
     const sourceColumnId = task.columnId;
-    const sourceIndex = task.position;
 
-    // If moving within the same column
-    if (sourceColumnId === destinationColumnId) {
-      if (sourceIndex === destinationIndex) {
-        return { success: true }; // No change needed
-      }
-
-      // Update positions for tasks in the same column
-      if (sourceIndex < destinationIndex) {
-        // Moving down: decrease position of tasks between source and destination
-        await prisma.task.updateMany({
-          where: {
-            columnId: sourceColumnId,
-            position: {
-              gt: sourceIndex,
-              lte: destinationIndex,
-            },
-          },
-          data: {
-            position: {
-              decrement: 1,
-            },
-          },
+    await prisma.$transaction(async (tx) => {
+      if (sourceColumnId === destinationColumnId) {
+        // Moving within the same column - reorder all tasks in that column
+        const allTasks = await tx.task.findMany({
+          where: { columnId: sourceColumnId },
+          orderBy: { position: "asc" },
         });
+
+        // First, set all tasks in this column to negative positions to avoid conflicts
+        for (let i = 0; i < allTasks.length; i++) {
+          await tx.task.update({
+            where: { id: allTasks[i].id },
+            data: { position: -(i + 1000) },
+          });
+        }
+
+        // Remove the moving task from the array
+        const tasksWithoutMoving = allTasks.filter((t) => t.id !== taskId);
+        
+        // Insert the moving task at the new position
+        tasksWithoutMoving.splice(destinationIndex, 0, task);
+
+        // Update all positions to final values
+        for (let i = 0; i < tasksWithoutMoving.length; i++) {
+          await tx.task.update({
+            where: { id: tasksWithoutMoving[i].id },
+            data: { position: i },
+          });
+        }
       } else {
-        // Moving up: increase position of tasks between destination and source
-        await prisma.task.updateMany({
-          where: {
-            columnId: sourceColumnId,
-            position: {
-              gte: destinationIndex,
-              lt: sourceIndex,
-            },
-          },
-          data: {
-            position: {
-              increment: 1,
-            },
-          },
+        // Moving to a different column
+        
+        // Get all tasks in both columns
+        const sourceTasks = await tx.task.findMany({
+          where: { columnId: sourceColumnId },
+          orderBy: { position: "asc" },
         });
+        
+        const destTasks = await tx.task.findMany({
+          where: { columnId: destinationColumnId },
+          orderBy: { position: "asc" },
+        });
+
+        // Set all affected tasks to negative positions first
+        for (let i = 0; i < sourceTasks.length; i++) {
+          await tx.task.update({
+            where: { id: sourceTasks[i].id },
+            data: { position: -(i + 1000) },
+          });
+        }
+        
+        for (let i = 0; i < destTasks.length; i++) {
+          await tx.task.update({
+            where: { id: destTasks[i].id },
+            data: { position: -(i + 2000) },
+          });
+        }
+
+        // Reorder source column (without the moving task)
+        const sourceTasksWithoutMoving = sourceTasks.filter((t) => t.id !== taskId);
+        for (let i = 0; i < sourceTasksWithoutMoving.length; i++) {
+          await tx.task.update({
+            where: { id: sourceTasksWithoutMoving[i].id },
+            data: { position: i },
+          });
+        }
+
+        // Insert the moving task at the destination position
+        destTasks.splice(destinationIndex, 0, { ...task, columnId: destinationColumnId });
+
+        // Update all tasks in destination column
+        for (let i = 0; i < destTasks.length; i++) {
+          if (destTasks[i].id === taskId) {
+            // Update the moving task with new column and position
+            await tx.task.update({
+              where: { id: taskId },
+              data: {
+                columnId: destinationColumnId,
+                position: i,
+              },
+            });
+          } else {
+            // Update existing tasks in destination column
+            await tx.task.update({
+              where: { id: destTasks[i].id },
+              data: { position: i },
+            });
+          }
+        }
       }
-
-      // Update the moved task's position
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { position: destinationIndex },
-      });
-    } else {
-      // Moving to a different column
-      await prisma.$transaction(async (tx) => {
-        // Decrease position of tasks after the source position in source column
-        await tx.task.updateMany({
-          where: {
-            columnId: sourceColumnId,
-            position: { gt: sourceIndex },
-          },
-          data: {
-            position: { decrement: 1 },
-          },
-        });
-
-        // Increase position of tasks at or after destination position in destination column
-        await tx.task.updateMany({
-          where: {
-            columnId: destinationColumnId,
-            position: { gte: destinationIndex },
-          },
-          data: {
-            position: { increment: 1 },
-          },
-        });
-
-        // Move the task to the new column and position
-        await tx.task.update({
-          where: { id: taskId },
-          data: {
-            columnId: destinationColumnId,
-            position: destinationIndex,
-          },
-        });
-      });
-    }
+    });
 
     // Revalidate the board page
-    revalidatePath(`/boards/${task.column.boardId}`);
+    revalidatePath(`/boards/${task.column.board.id}`);
 
     return { success: true };
   } catch (error) {

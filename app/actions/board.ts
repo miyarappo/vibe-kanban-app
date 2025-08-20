@@ -11,6 +11,20 @@ const createBoardSchema = z.object({
   description: z.string().optional(),
 });
 
+export async function getBoards() {
+  try {
+    const boards = await prisma.board.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    return boards;
+  } catch (error) {
+    console.error("Failed to fetch boards:", error);
+    return [];
+  }
+}
+
 export async function createBoard(formData: FormData) {
   const validatedFields = createBoardSchema.safeParse({
     title: formData.get("title"),
@@ -53,7 +67,7 @@ export async function createBoard(formData: FormData) {
     });
 
     redirect(`/boards/${board.id}`);
-  } catch (error) {
+  } catch {
     return {
       errors: {
         _form: ["ボードの作成に失敗しました"],

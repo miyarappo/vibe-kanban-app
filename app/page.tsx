@@ -1,6 +1,9 @@
 import { CreateBoardDialog } from "@/app/components/create-board-dialog";
+import { BoardList } from "@/app/components/board-list";
+import { getBoards } from "@/app/actions/board";
 
-export default function Home() {
+export default async function Home() {
+  const boards = await getBoards();
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -13,13 +16,23 @@ export default function Home() {
       </header>
       
       <main className="container mx-auto px-4 py-8">
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-semibold mb-4">カンバンボードで効率的なプロジェクト管理</h2>
-          <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-            タスクの管理と進捗の可視化を簡単に。新しいボードを作成してプロジェクトを始めましょう。
-          </p>
-          <CreateBoardDialog />
-        </div>
+        {boards.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-semibold">ボード一覧</h2>
+              <CreateBoardDialog />
+            </div>
+            <BoardList boards={boards} />
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-semibold mb-4">カンバンボードで効率的なプロジェクト管理</h2>
+            <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
+              タスクの管理と進捗の可視化を簡単に。新しいボードを作成してプロジェクトを始めましょう。
+            </p>
+            <CreateBoardDialog />
+          </div>
+        )}
       </main>
     </div>
   );

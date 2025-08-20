@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AddTaskDialog } from "@/app/components/add-task-dialog";
 
 const prisma = new PrismaClient();
 
@@ -118,6 +119,10 @@ export default async function BoardPage({ params }: BoardPageProps) {
                     タスクがありません
                   </div>
                 )}
+              </div>
+              
+              <div className="mt-4 pt-3 border-t">
+                <AddTaskDialog columnId={column.id} />
               </div>
             </div>
           ))}

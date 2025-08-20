@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -27,6 +27,11 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Sync state with props when board data changes
+  useEffect(() => {
+    setColumns(board.columns);
+  }, [board.columns]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

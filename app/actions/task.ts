@@ -72,3 +72,140 @@ export async function createTask(formData: FormData) {
     };
   }
 }
+
+const moveTaskSchema = z.object({
+  taskId: z.string().min(1, "タスクIDは必須です"),
+  destinationColumnId: z.string().min(1, "移動先カラムIDは必須です"),
+  destinationIndex: z.number().min(0, "移動先インデックスは0以上である必要があります"),
+});
+
+export async function moveTask(
+  taskId: string,
+  destinationColumnId: string,
+  destinationIndex: number
+) {
+  const validatedFields = moveTaskSchema.safeParse({
+    taskId,
+    destinationColumnId,
+    destinationIndex,
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    // Get the task being moved
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: { column: true },
+    });
+
+    if (!task) {
+      return {
+        errors: {
+          _form: ["タスクが見つかりません"],
+        },
+      };
+    }
+
+    const sourceColumnId = task.columnId;
+    const sourceIndex = task.position;
+
+    // If moving within the same column
+    if (sourceColumnId === destinationColumnId) {
+      if (sourceIndex === destinationIndex) {
+        return { success: true }; // No change needed
+      }
+
+      // Update positions for tasks in the same column
+      if (sourceIndex < destinationIndex) {
+        // Moving down: decrease position of tasks between source and destination
+        await prisma.task.updateMany({
+          where: {
+            columnId: sourceColumnId,
+            position: {
+              gt: sourceIndex,
+              lte: destinationIndex,
+            },
+          },
+          data: {
+            position: {
+              decrement: 1,
+            },
+          },
+        });
+      } else {
+        // Moving up: increase position of tasks between destination and source
+        await prisma.task.updateMany({
+          where: {
+            columnId: sourceColumnId,
+            position: {
+              gte: destinationIndex,
+              lt: sourceIndex,
+            },
+          },
+          data: {
+            position: {
+              increment: 1,
+            },
+          },
+        });
+      }
+
+      // Update the moved task's position
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { position: destinationIndex },
+      });
+    } else {
+      // Moving to a different column
+      await prisma.$transaction(async (tx) => {
+        // Decrease position of tasks after the source position in source column
+        await tx.task.updateMany({
+          where: {
+            columnId: sourceColumnId,
+            position: { gt: sourceIndex },
+          },
+          data: {
+            position: { decrement: 1 },
+          },
+        });
+
+        // Increase position of tasks at or after destination position in destination column
+        await tx.task.updateMany({
+          where: {
+            columnId: destinationColumnId,
+            position: { gte: destinationIndex },
+          },
+          data: {
+            position: { increment: 1 },
+          },
+        });
+
+        // Move the task to the new column and position
+        await tx.task.update({
+          where: { id: taskId },
+          data: {
+            columnId: destinationColumnId,
+            position: destinationIndex,
+          },
+        });
+      });
+    }
+
+    // Revalidate the board page
+    revalidatePath(`/boards/${task.column.boardId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to move task:", error);
+    return {
+      errors: {
+        _form: ["タスクの移動に失敗しました"],
+      },
+    };
+  }
+}

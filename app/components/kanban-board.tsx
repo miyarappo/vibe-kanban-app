@@ -14,7 +14,9 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import { Board, Column, Task } from "@prisma/client";
 import { DroppableColumn } from "./droppable-column";
+import { AddColumnButton } from "./add-column-button";
 import { moveTask } from "../actions/task";
+import { useRouter } from "next/navigation";
 
 interface KanbanBoardProps {
   board: Board & {
@@ -27,6 +29,7 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   // Sync state with props when board data changes
   useEffect(() => {
@@ -142,6 +145,10 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
     return columns.find((col) => col.tasks.some((t) => t.id === taskId)) || null;
   };
 
+  const handleColumnAdded = () => {
+    router.refresh();
+  };
+
   return (
     <DndContext
       sensors={sensors}
@@ -157,6 +164,7 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
             isOver={overId === column.id}
           />
         ))}
+        <AddColumnButton boardId={board.id} onColumnAdded={handleColumnAdded} />
       </div>
 
       <DragOverlay dropAnimation={null}>

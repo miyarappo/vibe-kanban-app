@@ -3,6 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Task } from "@prisma/client";
+import { isTaskOverdue, getOverdueRelativeTime } from "@/lib/utils";
 
 interface DraggableTaskProps {
   task: Task;
@@ -23,6 +24,9 @@ export function DraggableTask({ task }: DraggableTaskProps) {
     transition,
   };
 
+  const isOverdue = isTaskOverdue(task.dueDate);
+  const overdueText = getOverdueRelativeTime(task.dueDate);
+
   return (
     <div
       ref={setNodeRef}
@@ -31,9 +35,16 @@ export function DraggableTask({ task }: DraggableTaskProps) {
       {...listeners}
       className={`bg-background p-3 rounded-md border shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${
         isDragging ? "opacity-50 shadow-lg scale-105 rotate-2" : ""
-      }`}
+      } ${isOverdue ? "border-red-500 border-2" : ""}`}
     >
-      <h4 className="font-medium text-sm mb-1">{task.title}</h4>
+      <div className="flex items-start gap-2 mb-1">
+        <h4 className="font-medium text-sm flex-1">{task.title}</h4>
+        {isOverdue && (
+          <span className="text-red-500 text-sm" title="期限切れ">
+            ⚠️
+          </span>
+        )}
+      </div>
       {task.description && (
         <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
       )}
@@ -58,9 +69,16 @@ export function DraggableTask({ task }: DraggableTaskProps) {
             : "低"}
         </span>
         {task.dueDate && (
-          <span className="text-xs text-muted-foreground">
-            {new Date(task.dueDate).toLocaleDateString("ja-JP")}
-          </span>
+          <div className="flex flex-col items-end">
+            <span className={`text-xs ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+              {new Date(task.dueDate).toLocaleDateString("ja-JP")}
+            </span>
+            {isOverdue && (
+              <span className="text-xs text-red-500 font-medium">
+                {overdueText}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

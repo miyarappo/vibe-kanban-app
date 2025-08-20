@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { KanbanBoard } from "@/app/components/kanban-board";
+import { KanbanBoardClient } from "@/app/components/kanban-board-client";
 
 const prisma = new PrismaClient();
 
@@ -56,7 +56,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <KanbanBoard board={board} />
+        <KanbanBoardClient board={board} />
 
         {board.columns.length === 0 && (
           <div className="text-center py-12">

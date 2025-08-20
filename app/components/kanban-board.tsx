@@ -16,6 +16,7 @@ import { Board, Column, Task } from "@prisma/client";
 import { DroppableColumn } from "./droppable-column";
 import { AddColumnButton } from "./add-column-button";
 import { moveTask } from "../actions/task";
+import { isTaskOverdue, getOverdueRelativeTime } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 interface KanbanBoardProps {
@@ -197,9 +198,16 @@ export function KanbanBoard({ board }: KanbanBoardProps) {
                   : "低"}
               </span>
               {activeTask.dueDate && (
-                <span className="text-xs text-muted-foreground">
-                  {new Date(activeTask.dueDate).toLocaleDateString("ja-JP")}
-                </span>
+                <div className="flex flex-col items-end">
+                  <span className={`text-xs ${isTaskOverdue(activeTask.dueDate) ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                    {new Date(activeTask.dueDate).toLocaleDateString("ja-JP")}
+                  </span>
+                  {isTaskOverdue(activeTask.dueDate) && (
+                    <span className="text-xs text-red-500 font-medium">
+                      {getOverdueRelativeTime(activeTask.dueDate)}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
